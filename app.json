@@ -1,0 +1,6 @@
+{
+  "name": "fetcher",
+  "description": "Fetches data and passes it through an external handler",
+  "repository": "https://github.com/to-be-defined",
+  "keywords": ["node"]
+}
