@@ -1,25 +1,14 @@
 /*
- * Core ProxyMul
- * 
- * Proxy files from multiple mapped domains.
- * Mapping:Hash { requestDomain1: proxyDomain1, ... }
- * Entry data: [sub.]domain.dot.com[:port] 
- * Output data: guessed content-type header + file
- *  
+ * Core Fetcher  
  */
 
 const Provider = require('./providers').get('Google')
 
 var map = {}
 
-const http = require('http'),
- https = require('https'),
- fs = require('fs'),
- mime = require('mime-types'),
- path = require('path'),
- conf = require('./config'),
- _ = require('lodash'),
- urlUtils = require('url');
+const
+ request = require('request'),
+ conf = require('./config');
 
 function init() {
   fetchMap();
@@ -27,30 +16,51 @@ function init() {
 }
 
 function fetchMap() {
-  fetcher(conf.proxyMapUrl).get(conf.proxyMapUrl, function(res) {
-    var body = '';
-    res.on('data', function(chunk) {
-      body += chunk;
-    });
-    res.on('end', function() {
-      map = JSON.parse(body);
-    });
-  }).on('error', function() {
-    // retry
-    setTimeout(fetchMap, 30*1000);
-    console.log('Failed to load proxy map');
-  });
+  request.get(conf.proxyMapUrl, function(err, res, body) {
+    if (err) {
+      setTimeout(fetchMap, 30*1000)
+      console.log('Failed to load proxy map')
+      return
+    }
+
+    map = JSON.parse(body);
+  })
 }
 
 function processRequest(req, cb) {
-    // Request params
-  // /* Pattern */ 'http://unix:SOCKET:PATH'
-  // /* Example */ request.get('http://unix:/absolute/path/to/unix.socket:/request/path')
-
+  let requestConfig = getRequestConfig(req.headers[conf.header])  
   
-  Provider.fetch('https://formkeep.com', 'en', 'ru')
-    .then( (data) => cb(data) )
+  if (map == {}) {
+    console.log('map is not loaded yet');
+    return cb({ error: 404 });
+  }
+  if (!requestConfig) {
+    console.log('unknown domain');
+    return cb({ error: 404 });
+  } else {
+    requestConfig.targetUrl = requestConfig.targetDomain + req.url
+  }
+  
+  Provider.fetch(requestConfig)
+    .then( (html) => handleTranslate(html, requestConfig) )
+    .then( (processedHtml) => cb(processedHtml) )
   return  
+}
+
+function handleTranslate(html, requestConfig) {
+  return new Promise((resolve, reject) => {
+    request.post({
+      url: conf.handlerUrl, 
+      form: {
+        domain: requestConfig.domain,
+        subdomain: requestConfig.subdomain,
+        html: html
+      }}, 
+      (err, res, body) => {
+        if (err) { reject(err) }
+        resolve(JSON.parse(body).html)
+      })
+  }) 
 }
 
 function extractParts(host) {
@@ -61,13 +71,27 @@ function urlToPath(url, sourceDomain) {
   return [destBase, sourceDomain, (url.match(/^\/(.*)\/.*$/) || [null]).pop()].filter( function(el) { return el; } ).join('/');
 }
 
-function getSourceDomain(host) {
-  var parts = extractParts(host);
-  return checkMappedDomain(parts[parts.length - 1]) || checkMappedDomain(parts.join('.')) || null; 
-}
-
-function checkMappedDomain(domain) {
-  return map[domain] ? domain : null;
+function getRequestConfig(host) {
+  let parts = extractParts(host),
+    reqConf = null,
+    domain = parts.join('.')
+    subdomain = null
+  
+  reqConf = map[domain]
+  if (!reqConf) { 
+    domain = parts[parts.length - 1]
+    subdomain = parts[parts.length - 2]
+    reqConf = map[domain]
+  }
+  if (!reqConf || !reqConf.subdomains[subdomain || 0]) return null
+  
+  return {
+    domain: domain,
+    subdomain: subdomain,
+    targetDomain: reqConf.targetUrl,
+    sourceLangCode: reqConf.sourceLangCode,
+    targetLangCode: reqConf.subdomains[subdomain || 0].targetLangCode
+  }
 }
 
 module.exports = {

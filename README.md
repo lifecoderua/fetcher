@@ -11,10 +11,10 @@ Expected to be provided as a static or dynamic response, containing domains, sub
 Use `null` subdomain name in order to set no-subdomain target langcode.
 
 ```
-[
-{ domain: '', subdomains: [{name: ''|null, targetLangCode: ''}], sourceLangCode: '' },
+{
+<hostname>: { targetUrl: '', subdomains: [{name: ''|null, targetLangCode: ''}], sourceLangCode: '' },
 ...
-]
+}
 ```
 
 ### Data handler schema

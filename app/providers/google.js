@@ -12,14 +12,14 @@ const baseRequest = request.defaults({
 class Google {  
   constructor() {}
   
-  fetch(url, sourceLangCode, targetLangCode) {
+  fetch({targetUrl, sourceLangCode, targetLangCode}) {
     this.depth = 0  
-    let targetUrl = TRANSLATION_URL
+    let providerUrl = TRANSLATION_URL
                       .replace('%{source_lang_code}', sourceLangCode)
                       .replace('%{result_lang_code}', targetLangCode)
-                      .replace('%{url}', url);
+                      .replace('%{url}', targetUrl)
         
-    let done = new Promise( (resolve) => this.load_and_translate(targetUrl, resolve) )
+    let done = new Promise( (resolve) => this.load_and_translate(providerUrl, resolve) )
     return done
   }
   
