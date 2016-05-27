@@ -28,7 +28,7 @@ function fetchMap() {
 }
 
 function processRequest(req, cb) {
-  let requestConfig = getRequestConfig(req.headers[conf.header])  
+  let requestConfig = getRequestConfig(req.headers[conf.header])
   
   if (map == {}) {
     console.log('map is not loaded yet');
@@ -83,14 +83,14 @@ function getRequestConfig(host) {
     subdomain = parts[parts.length - 2]
     reqConf = map[domain]
   }
-  if (!reqConf || !reqConf.subdomains[subdomain || 0]) return null
+  if (!reqConf || !reqConf.subdomains[subdomain || '*']) return null
   
   return {
     domain: domain,
     subdomain: subdomain,
     targetDomain: reqConf.targetUrl,
     sourceLangCode: reqConf.sourceLangCode,
-    targetLangCode: reqConf.subdomains[subdomain || 0].targetLangCode
+    targetLangCode: reqConf.subdomains[subdomain || '*'].targetLangCode
   }
 }
 
