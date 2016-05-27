@@ -4,13 +4,20 @@
 
 const Provider = require('./providers').get('Google')
 
-var map = {}
+var 
+  map = {}
 
 const
  request = require('request'),
- conf = require('./config');
+ conf = require('./config'),
+ mongo = require('mongodb').MongoClient;
 
 function init() {
+  mongo.connect(conf.cachePath, (err, database) => {
+    if (err) throw err
+    db = database
+    this.cache = db.collection(conf.cacheBucket) 
+  })
   fetchMap();
   setInterval(fetchMap, 10*60*1000);
 }
@@ -28,23 +35,37 @@ function fetchMap() {
 }
 
 function processRequest(req, cb) {
-  let requestConfig = getRequestConfig(req.headers[conf.header])
+  host = req.headers[conf.header].split(':')[0]
+
+  let requestConfig = getRequestConfig(host) 
+  let cachePath = host + req.url
   
-  if (map == {}) {
-    console.log('map is not loaded yet');
-    return cb({ error: 404 });
-  }
-  if (!requestConfig) {
-    console.log('unknown domain');
-    return cb({ error: 404 });
-  } else {
-    requestConfig.targetUrl = requestConfig.targetDomain + req.url
-  }
-  
-  Provider.fetch(requestConfig)
+  this.cache.find({domain_path: cachePath}).limit(1).toArray().then( (data) => {
+    item = data.pop()
+    if (item) return item.data
+         
+    if (map == {}) {
+      console.log('map is not loaded yet');
+      return cb({ error: 404 });
+    }
+    if (!requestConfig) {
+      console.log('unknown domain');
+      return cb({ error: 404 });
+    } else {
+      requestConfig.targetUrl = requestConfig.targetDomain + req.url
+    }   
+    
+    return Provider.fetch(requestConfig)
+      .then( (html) => {
+        this.cache.findOneAndReplace(
+          {domain_path: cachePath}, 
+          {domain: host, domain_path: cachePath, data: html, type: 'clean', c_at: new Date()}
+          )
+        return html 
+      })
+  })
     .then( (html) => handleTranslate(html, requestConfig) )
-    .then( (processedHtml) => cb(processedHtml) )
-  return  
+    .then( (processedHtml) => cb(processedHtml) )    
 }
 
 function handleTranslate(html, requestConfig) {

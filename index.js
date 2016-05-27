@@ -6,7 +6,6 @@ const conf = require('./app/config'),
 
 var util = require('util');
 
-
 fetcher.init();
 
 function fetcherResponseWrapper(res) {
